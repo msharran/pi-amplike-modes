@@ -1,12 +1,13 @@
 {
-  "name": "pi-agent-modes",
+  "name": "pi-amplike-modes",
   "version": "0.1.0",
-  "description": "Pi extension for quickly switching between deep, rush, and smart agent modes.",
+  "description": "Pi extension for quickly switching between amp-like deep, rush, and smart agent modes.",
   "keywords": [
     "pi-package",
     "pi",
     "pi-extension",
-    "agent-modes"
+    "agent-modes",
+    "amp-like"
   ],
   "license": "MIT",
   "type": "module",
@@ -17,7 +18,7 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/pi-agent-modes.ts"
+      "./extensions/pi-amplike-modes.ts"
     ]
   },
   "peerDependencies": {

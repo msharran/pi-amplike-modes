@@ -22,7 +22,7 @@ interface ModesConfig {
 }
 
 const CONFIG_PATH = join(getAgentDir(), "modes.json");
-const STATUS_KEY = "pi-agent-modes";
+const STATUS_KEY = "pi-amplike-modes";
 const DEFAULT_CONFIG: ModesConfig = {
 	version: 1,
 	currentMode: "deep",
@@ -128,7 +128,7 @@ async function applyMode(name: ModeName, ctx: ExtensionContext, pi: ExtensionAPI
 	return true;
 }
 
-export default function piAgentModes(pi: ExtensionAPI) {
+export default function piAmplikeModes(pi: ExtensionAPI) {
 	let config = readConfig();
 
 	async function cycle(ctx: ExtensionContext) {
@@ -169,10 +169,6 @@ export default function piAgentModes(pi: ExtensionAPI) {
 		handler: switchMode,
 	});
 
-	pi.registerCommand("coding-mode", {
-		description: "Legacy alias for /agent-mode",
-		handler: switchMode,
-	});
 
 	pi.on("session_start", async (_event, ctx) => {
 		config = readConfig();
