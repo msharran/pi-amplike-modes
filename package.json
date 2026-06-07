@@ -1,0 +1,27 @@
+{
+  "name": "pi-agent-modes",
+  "version": "0.1.0",
+  "description": "Pi extension for quickly switching between deep, rush, and smart agent modes.",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "agent-modes"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/pi-agent-modes.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  }
+}
