@@ -13,6 +13,7 @@
   "type": "module",
   "files": [
     "extensions",
+    "images",
     "README.md",
     "LICENSE"
   ],

@@ -1,26 +1,52 @@
 # pi-amplike-modes
 
-A Pi package that adds amp-like quick agent-mode switching for Pi.
+Amp-like quick mode switching for [Pi](https://pi.dev): jump between `deep`, `rush`, and `smart` coding modes without opening the model picker.
 
-## Install
+This extension is intentionally distributed from GitHub, not npm.
 
-Install directly from GitHub:
+## Recommended setup
+
+The screenshots below use [`amp-themes`](https://pi.dev/packages/amp-themes). Install it first if you want the same visual style:
+
+```bash
+pi install npm:amp-themes
+```
+
+Then install this extension from GitHub:
 
 ```bash
 pi install git:github.com/msharran/pi-amplike-modes
 ```
 
-After npm publication, install from npm with:
+Restart Pi, or run `/reload` if Pi is already open.
 
-```bash
-pi install npm:pi-amplike-modes
-```
+## Preview
+
+### Deep mode
+
+`deep` is the balanced default for normal coding work.
+
+![Deep mode](images/deep.png)
+
+### Rush mode
+
+`rush` turns thinking off for fast, lightweight edits.
+
+![Rush mode](images/rush.png)
+
+### Smart mode
+
+`smart` uses the highest thinking level for harder tasks.
+
+![Smart mode](images/smart.png)
 
 ## Modes
 
-- `deep` — GPT-5.5 with medium thinking
-- `rush` — GPT-5.5 with thinking off
-- `smart` — GPT-5.5 with xhigh thinking
+| Mode | Default model | Thinking level | Use it for |
+| --- | --- | --- | --- |
+| `deep` | `openai-codex/gpt-5.5` | `medium` | Everyday coding and review |
+| `rush` | `openai-codex/gpt-5.5` | `off` | Quick fixes and low-latency edits |
+| `smart` | `openai-codex/gpt-5.5` | `xhigh` | Complex debugging, planning, and architecture |
 
 The active mode is shown in the Pi footer/status area.
 
@@ -29,9 +55,11 @@ The active mode is shown in the Pi footer/status area.
 - Press `Alt+M` or `F8` to cycle `deep → rush → smart`.
 - Run `/agent-mode deep`, `/agent-mode rush`, `/agent-mode smart`, or `/agent-mode toggle`.
 
-Mode settings are read from `~/.pi/agent/modes.json`; if the file does not exist, defaults are used.
+`/agent-mode` is the only slash command registered by this extension.
 
-## Sample `modes.json`
+## Configuration
+
+Mode settings are read from `~/.pi/agent/modes.json`. If the file does not exist, the extension uses the defaults shown below.
 
 Create or edit `~/.pi/agent/modes.json` to customize providers, models, thinking levels, and labels:
 
@@ -62,11 +90,15 @@ Create or edit `~/.pi/agent/modes.json` to customize providers, models, thinking
 }
 ```
 
-## Pi package listing
+## Distribution
 
-The Pi package catalog lists extensions, skills, prompts, and themes that are published to npm and tagged with the `pi-package` keyword. This package includes that keyword and a `pi` manifest in `package.json`.
+This package is meant to be installed as a Git-backed Pi package:
 
-Once the npm package is published, the catalog should be able to discover it. The Pi docs do not state a fixed indexing SLA, so the exact listing time is not documented.
+```bash
+pi install git:github.com/msharran/pi-amplike-modes
+```
+
+The Pi package gallery currently lists packages published to npm with the `pi-package` keyword. Since this project is intentionally Git-only, it may not appear in the Pi package catalog.
 
 ## Contributing
 
@@ -91,9 +123,9 @@ Once the npm package is published, the catalog should be able to discover it. Th
 
 4. Reload Pi after changes with `/reload`, or restart Pi if needed.
 
-5. Validate packaging before opening a pull request:
+5. Validate packaging and formatting before opening a pull request:
 
    ```bash
-   npm pack --dry-run
+   npm_config_cache="$(mktemp -d)" npm pack --dry-run
    git diff --check
    ```
