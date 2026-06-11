@@ -82,12 +82,12 @@ function modeForCurrentState(ctx: ExtensionContext, pi: ExtensionAPI, config: Mo
 function setStatus(ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig, activeMode?: ModeName) {
 	const name = activeMode ?? modeForCurrentState(ctx, pi, config);
 	if (!name) {
-		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("accent", "custom"));
+		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", "mode[custom]"));
 		return;
 	}
 
 	const mode = config.modes[name];
-	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("accent", mode.label ?? name));
+	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", `mode[${mode.label ?? name}]`));
 }
 
 async function applyMode(name: ModeName, ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig): Promise<boolean> {
