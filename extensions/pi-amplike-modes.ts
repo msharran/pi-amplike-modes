@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Key, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Key } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
@@ -90,22 +90,6 @@ function setStatus(ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig,
 	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("accent", mode.label ?? name));
 }
 
-function installStatusFooter(ctx: ExtensionContext) {
-	if (!ctx.hasUI) return;
-
-	ctx.ui.setFooter((_tui, _theme, footerData) => ({
-		invalidate() {},
-		render(width: number): string[] {
-			const modeStatus = footerData.getExtensionStatuses().get(STATUS_KEY);
-			if (!modeStatus) return [];
-
-			const text = ` ${modeStatus}`;
-			const padding = " ".repeat(Math.max(0, width - visibleWidth(text)));
-			return [truncateToWidth(`${text}${padding}`, width, "")];
-		},
-	}));
-}
-
 async function applyMode(name: ModeName, ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig): Promise<boolean> {
 	const mode = config.modes[name];
 	const model = ctx.modelRegistry.find(mode.provider, mode.modelId);
@@ -173,11 +157,6 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		config = readConfig();
 		setStatus(ctx, pi, config);
-
-		// amp-themes intentionally hides Pi's default footer, which also hides
-		// extension statuses. Reinstall a tiny footer after startup so the mode
-		// status is visible without replacing amp-themes' editor/border chrome.
-		setTimeout(() => installStatusFooter(ctx), 0);
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
