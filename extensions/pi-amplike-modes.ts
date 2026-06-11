@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Key } from "@earendil-works/pi-tui";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
@@ -23,6 +23,14 @@ interface ModesConfig {
 
 const CONFIG_PATH = join(getAgentDir(), "modes.json");
 const STATUS_KEY = "pi-amplike-modes";
+const THINKING_LEVEL_COLORS: Record<ThinkingLevel, ThemeColor> = {
+	off: "thinkingOff",
+	minimal: "thinkingMinimal",
+	low: "thinkingLow",
+	medium: "thinkingMedium",
+	high: "thinkingHigh",
+	xhigh: "thinkingXhigh",
+};
 const DEFAULT_CONFIG: ModesConfig = {
 	version: 1,
 	currentMode: "deep",
@@ -79,15 +87,19 @@ function modeForCurrentState(ctx: ExtensionContext, pi: ExtensionAPI, config: Mo
 	});
 }
 
+function colorForThinkingLevel(level: ThinkingLevel): ThemeColor {
+	return THINKING_LEVEL_COLORS[level];
+}
+
 function setStatus(ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig, activeMode?: ModeName) {
 	const name = activeMode ?? modeForCurrentState(ctx, pi, config);
 	if (!name) {
-		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", "mode[custom]"));
+		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(colorForThinkingLevel(pi.getThinkingLevel()), "mode[custom]"));
 		return;
 	}
 
 	const mode = config.modes[name];
-	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", `mode[${mode.label ?? name}]`));
+	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(colorForThinkingLevel(mode.thinkingLevel), `mode[${mode.label ?? name}]`));
 }
 
 async function applyMode(name: ModeName, ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig): Promise<boolean> {
