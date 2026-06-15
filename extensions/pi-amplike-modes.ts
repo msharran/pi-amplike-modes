@@ -349,13 +349,19 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 			}
 
 			render(width: number): string[] {
-				const lines = super.render(width);
+				const innerWidth = Math.max(1, width - 2);
+				const lines = super.render(innerWidth);
 				if (lines.length < 2) return lines;
 
 				const amp = config.ampUi;
 				const border = (text: string) => hexColor(text, amp.borderColor) ?? ctx.ui.theme.fg("border", text);
 				while (lines.length - 2 < amp.minInputRows) {
-					lines.splice(lines.length - 1, 0, `${border("│")}${" ".repeat(Math.max(0, width - 2))}${border("│")}`);
+					lines.splice(lines.length - 1, 0, " ".repeat(innerWidth));
+				}
+				for (let index = 1; index < lines.length - 1; index++) {
+					const content = truncateToWidth(lines[index] ?? "", innerWidth, "");
+					const padding = " ".repeat(Math.max(0, innerWidth - visibleWidth(content)));
+					lines[index] = `${border("│")}${content}${padding}${border("│")}`;
 				}
 
 				const mode = labelForMode(ctx, pi, config);
