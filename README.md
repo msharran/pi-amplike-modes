@@ -79,8 +79,11 @@ The Amp-style UI is disabled by default. Enable it with `"ampUi": { "enabled": t
     "tokensSuffix": "tok",
     "modeSeparator": "—",
     "modeColors": {
+      "deep": "#7dffa2",
+      "deep²": "#7dffa2",
       "rush": "#f1c85b"
-    }
+    },
+    "borderColor": "#a9afbd"
   },
   "modes": {
     "deep": {

@@ -33,6 +33,7 @@ interface AmpUiConfig {
 	tokensSuffix: string;
 	modeSeparator: string;
 	modeColors: Record<string, string>;
+	borderColor: string;
 }
 
 interface ModesConfig {
@@ -64,8 +65,12 @@ const DEFAULT_AMP_UI: AmpUiConfig = {
 	tokensSuffix: "tok",
 	modeSeparator: "—",
 	modeColors: {
+		deep: "#7dffa2",
+		"deep²": "#7dffa2",
+		"deep³": "#7dffa2",
 		rush: "#f1c85b",
 	},
+	borderColor: "#a9afbd",
 };
 const DEFAULT_CONFIG: ModesConfig = {
 	version: 1,
@@ -162,7 +167,10 @@ function colorModeLabel(
 	mode: { name: string; label: string; level: ThinkingLevel },
 	text: string,
 ): string {
-	const configured = config.ampUi.modeColors[mode.name] ?? config.ampUi.modeColors[mode.label];
+	const configured =
+		config.ampUi.modeColors[mode.name] ??
+		config.ampUi.modeColors[mode.label] ??
+		(mode.label.startsWith("deep") ? config.ampUi.modeColors.deep : undefined);
 	if (configured) {
 		const hex = hexColor(text, configured);
 		if (hex) return hex;
@@ -354,7 +362,7 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 				const cwd = amp.showCwd ? formatCwd(ctx.cwd) : "";
 				const branchText = amp.showBranch && branch ? ` (${branch})` : "";
 				const bottomRight = ctx.ui.theme.fg("muted", ` ${cwd}${branchText} `);
-				const border = (text: string) => this.borderColor(text);
+				const border = (text: string) => hexColor(text, amp.borderColor) ?? ctx.ui.theme.fg("border", text);
 
 				lines[0] = fitBorder("", topRight, width, { leftCorner: "╭", rightCorner: "╮", line: "─" }, border);
 				lines[lines.length - 1] = fitBorder(
