@@ -85,7 +85,8 @@ The Amp-style UI is disabled by default. Enable it with `"ampUi": { "enabled": t
     },
     "borderColor": "#a9afbd",
     "editorPaddingX": 2,
-    "minInputRows": 2
+    "minInputRows": 2,
+    "bottomPaddingRows": 1
   },
   "modes": {
     "deep": {

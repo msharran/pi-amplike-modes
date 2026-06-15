@@ -36,6 +36,7 @@ interface AmpUiConfig {
 	borderColor: string;
 	editorPaddingX: number;
 	minInputRows: number;
+	bottomPaddingRows: number;
 }
 
 interface ModesConfig {
@@ -75,6 +76,7 @@ const DEFAULT_AMP_UI: AmpUiConfig = {
 	borderColor: "#a9afbd",
 	editorPaddingX: 2,
 	minInputRows: 2,
+	bottomPaddingRows: 1,
 };
 const DEFAULT_CONFIG: ModesConfig = {
 	version: 1,
@@ -356,6 +358,9 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 				const amp = config.ampUi;
 				const border = (text: string) => hexColor(text, amp.borderColor) ?? ctx.ui.theme.fg("border", text);
 				while (lines.length - 2 < amp.minInputRows) {
+					lines.splice(lines.length - 1, 0, " ".repeat(innerWidth));
+				}
+				for (let index = 0; index < amp.bottomPaddingRows; index++) {
 					lines.splice(lines.length - 1, 0, " ".repeat(innerWidth));
 				}
 				for (let index = 1; index < lines.length - 1; index++) {
