@@ -1,12 +1,19 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Key } from "@earendil-works/pi-tui";
-import type { ExtensionAPI, ExtensionContext, ThemeColor } from "@earendil-works/pi-coding-agent";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import {
+	CustomEditor,
+	getAgentDir,
+	type ExtensionAPI,
+	type ExtensionContext,
+	type KeybindingsManager,
+	type ThemeColor,
+} from "@earendil-works/pi-coding-agent";
+import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
+import { Key, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
-
-type ModeName = "deep" | "rush" | "smart";
+type ModeName = string;
+type AmpMetric = "tokens" | "cost";
 
 interface AgentMode {
 	provider: string;
@@ -15,14 +22,29 @@ interface AgentMode {
 	label: string;
 }
 
+interface AmpUiConfig {
+	enabled: boolean;
+	greeting: string;
+	metric: AmpMetric;
+	hideFooter: boolean;
+	showHeader: boolean;
+	showCwd: boolean;
+	showBranch: boolean;
+	tokensSuffix: string;
+	modeSeparator: string;
+	modeColors: Record<string, string>;
+}
+
 interface ModesConfig {
 	version: number;
 	currentMode: ModeName;
 	modes: Record<ModeName, AgentMode>;
+	ampUi: AmpUiConfig;
 }
 
 const CONFIG_PATH = join(getAgentDir(), "modes.json");
 const STATUS_KEY = "pi-amplike-modes";
+const DEFAULT_MODE_ORDER = ["deep", "rush", "smart"];
 const THINKING_LEVEL_COLORS: Record<ThinkingLevel, ThemeColor> = {
 	off: "thinkingOff",
 	minimal: "thinkingMinimal",
@@ -31,9 +53,24 @@ const THINKING_LEVEL_COLORS: Record<ThinkingLevel, ThemeColor> = {
 	high: "thinkingHigh",
 	xhigh: "thinkingXhigh",
 };
+const DEFAULT_AMP_UI: AmpUiConfig = {
+	enabled: false,
+	greeting: "Hi! What would you like to work on?",
+	metric: "tokens",
+	hideFooter: true,
+	showHeader: true,
+	showCwd: true,
+	showBranch: true,
+	tokensSuffix: "tok",
+	modeSeparator: "—",
+	modeColors: {
+		rush: "#f1c85b",
+	},
+};
 const DEFAULT_CONFIG: ModesConfig = {
 	version: 1,
 	currentMode: "deep",
+	ampUi: DEFAULT_AMP_UI,
 	modes: {
 		deep: {
 			provider: "openai-codex",
@@ -62,6 +99,10 @@ function readConfig(): ModesConfig {
 		return {
 			...DEFAULT_CONFIG,
 			...parsed,
+			ampUi: {
+				...DEFAULT_AMP_UI,
+				...(parsed.ampUi ?? {}),
+			},
 			modes: {
 				...DEFAULT_CONFIG.modes,
 				...(parsed.modes ?? {}),
@@ -76,19 +117,59 @@ function writeConfig(config: ModesConfig) {
 	writeFileSync(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
 }
 
+function modeNames(config: ModesConfig): ModeName[] {
+	const names = Object.keys(config.modes);
+	const preferred = DEFAULT_MODE_ORDER.filter((name) => names.includes(name));
+	const rest = names.filter((name) => !preferred.includes(name));
+	return [...preferred, ...rest];
+}
+
 function modeForCurrentState(ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig): ModeName | undefined {
 	const provider = ctx.model?.provider;
 	const modelId = ctx.model?.id;
 	const thinkingLevel = pi.getThinkingLevel();
 
-	return (Object.keys(config.modes) as ModeName[]).find((name) => {
+	return modeNames(config).find((name) => {
 		const mode = config.modes[name];
 		return mode.provider === provider && mode.modelId === modelId && mode.thinkingLevel === thinkingLevel;
 	});
 }
 
 function colorForThinkingLevel(level: ThinkingLevel): ThemeColor {
-	return THINKING_LEVEL_COLORS[level];
+	return THINKING_LEVEL_COLORS[level] ?? "accent";
+}
+
+function labelForMode(ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig): { name: string; label: string; level: ThinkingLevel } {
+	const name = modeForCurrentState(ctx, pi, config) ?? config.currentMode;
+	const mode = config.modes[name];
+	if (mode) return { name, label: mode.label ?? name, level: mode.thinkingLevel };
+	return { name: "custom", label: "custom", level: pi.getThinkingLevel() };
+}
+
+function hexColor(text: string, value: string): string | undefined {
+	const match = value.match(/^#?([0-9a-f]{6})$/i);
+	if (!match) return undefined;
+	const hex = match[1]!;
+	const red = parseInt(hex.slice(0, 2), 16);
+	const green = parseInt(hex.slice(2, 4), 16);
+	const blue = parseInt(hex.slice(4, 6), 16);
+	return `\x1b[38;2;${red};${green};${blue}m${text}\x1b[39m`;
+}
+
+function colorModeLabel(
+	ctx: ExtensionContext,
+	config: ModesConfig,
+	mode: { name: string; label: string; level: ThinkingLevel },
+	text: string,
+): string {
+	const configured = config.ampUi.modeColors[mode.name] ?? config.ampUi.modeColors[mode.label];
+	if (configured) {
+		const hex = hexColor(text, configured);
+		if (hex) return hex;
+		if (configured in THINKING_LEVEL_COLORS) return ctx.ui.theme.fg(colorForThinkingLevel(configured as ThinkingLevel), text);
+		return ctx.ui.theme.fg(configured as ThemeColor, text);
+	}
+	return ctx.ui.theme.fg(colorForThinkingLevel(mode.level), text);
 }
 
 function setStatus(ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig, activeMode?: ModeName) {
@@ -102,8 +183,79 @@ function setStatus(ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig,
 	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(colorForThinkingLevel(mode.thinkingLevel), `mode[${mode.label ?? name}]`));
 }
 
+function formatCwd(cwd: string): string {
+	const home = process.env.HOME;
+	if (home && cwd === home) return "~";
+	if (home && cwd.startsWith(`${home}/`)) return `~${cwd.slice(home.length)}`;
+	return cwd;
+}
+
+function fitBorder(
+	left: string,
+	right: string,
+	width: number,
+	parts: { leftCorner: string; rightCorner: string; line: string },
+	color: (text: string) => string,
+): string {
+	if (width <= 0) return "";
+	if (width === 1) return color(parts.line);
+
+	let leftText = left;
+	let rightText = right;
+	const fixedWidth = 2;
+	const minimumGap = 1;
+
+	while (fixedWidth + visibleWidth(leftText) + visibleWidth(rightText) + minimumGap > width && visibleWidth(rightText) > 0) {
+		rightText = truncateToWidth(rightText, Math.max(0, visibleWidth(rightText) - 1), "");
+	}
+	while (fixedWidth + visibleWidth(leftText) + visibleWidth(rightText) + minimumGap > width && visibleWidth(leftText) > 0) {
+		leftText = truncateToWidth(leftText, Math.max(0, visibleWidth(leftText) - 1), "");
+	}
+
+	const gapWidth = Math.max(0, width - fixedWidth - visibleWidth(leftText) - visibleWidth(rightText));
+	return `${color(parts.leftCorner)}${leftText}${color(parts.line.repeat(gapWidth))}${rightText}${color(parts.rightCorner)}`;
+}
+
+function sessionCost(ctx: ExtensionContext): number {
+	let cost = 0;
+	for (const entry of ctx.sessionManager.getBranch()) {
+		if (entry.type !== "message") continue;
+		const message = entry.message as { role?: string; usage?: { cost?: { total?: number } } };
+		if (message.role === "assistant") cost += message.usage?.cost?.total ?? 0;
+	}
+	return cost;
+}
+
+function formatTokens(ctx: ExtensionContext): string {
+	const usage = ctx.getContextUsage();
+	const tokens = usage?.tokens ?? 0;
+	if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
+	return `${tokens}`;
+}
+
+function formatCost(ctx: ExtensionContext): string {
+	return `$${sessionCost(ctx).toFixed(3)}`;
+}
+
+function isMouseInput(data: string): boolean {
+	return /^\x1b\[<\d+;\d+;\d+[Mm]$/.test(data) || /^\x1b\[M/.test(data);
+}
+
+class EmptyComponent {
+	render(): string[] {
+		return [];
+	}
+
+	invalidate(): void {}
+}
+
 async function applyMode(name: ModeName, ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig): Promise<boolean> {
 	const mode = config.modes[name];
+	if (!mode) {
+		ctx.ui.notify(`Mode not found: ${name}`, "error");
+		return false;
+	}
+
 	const model = ctx.modelRegistry.find(mode.provider, mode.modelId);
 	if (!model) {
 		ctx.ui.notify(`Mode "${name}": model not found: ${mode.provider}/${mode.modelId}`, "error");
@@ -126,14 +278,107 @@ async function applyMode(name: ModeName, ctx: ExtensionContext, pi: ExtensionAPI
 
 export default function piAmplikeModes(pi: ExtensionAPI) {
 	let config = readConfig();
+	let activeTui: TUI | undefined;
+	let branch: string | undefined;
+
+	const requestRender = () => activeTui?.requestRender();
+
+	async function refreshBranch(ctx: ExtensionContext) {
+		const result = await pi.exec("git", ["branch", "--show-current"], { cwd: ctx.cwd }).catch(() => undefined);
+		const stdout = result?.stdout.trim();
+		branch = stdout && stdout.length > 0 ? stdout : undefined;
+		requestRender();
+	}
+
+	function toggleAmpMetric(ctx?: ExtensionContext) {
+		config = readConfig();
+		config.ampUi.metric = config.ampUi.metric === "tokens" ? "cost" : "tokens";
+		writeConfig(config);
+		ctx?.ui.notify(`Amp UI metric: ${config.ampUi.metric}`, "info");
+		requestRender();
+	}
+
+	function installAmpUi(ctx: ExtensionContext) {
+		if (ctx.mode !== "tui" || !config.ampUi.enabled) {
+			ctx.ui.setHeader(undefined);
+			ctx.ui.setFooter(undefined);
+			ctx.ui.setEditorComponent(undefined);
+			return;
+		}
+
+		if (config.ampUi.hideFooter) ctx.ui.setFooter(() => new EmptyComponent());
+		else ctx.ui.setFooter(undefined);
+
+		if (config.ampUi.showHeader) {
+			ctx.ui.setHeader((_tui, theme) => ({
+				render(width: number): string[] {
+					return [truncateToWidth(theme.fg("muted", config.ampUi.greeting), width)];
+				},
+				invalidate() {},
+			}));
+		} else {
+			ctx.ui.setHeader(() => new EmptyComponent());
+		}
+
+		void refreshBranch(ctx);
+
+		class AmpEditor extends CustomEditor {
+			constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) {
+				super(tui, theme, keybindings, { paddingX: 1 });
+				activeTui = tui;
+			}
+
+			handleInput(data: string): void {
+				if (isMouseInput(data)) {
+					toggleAmpMetric();
+					return;
+				}
+				super.handleInput(data);
+			}
+
+			render(width: number): string[] {
+				const lines = super.render(width);
+				if (lines.length < 2) return lines;
+
+				const amp = config.ampUi;
+				const mode = labelForMode(ctx, pi, config);
+				const metric = amp.metric === "cost" ? formatCost(ctx) : formatTokens(ctx);
+				const metricSuffix = amp.metric === "tokens" ? ` ${amp.tokensSuffix}` : "";
+				const topRight = `${ctx.ui.theme.fg("muted", ` ${metric}${metricSuffix} ${amp.modeSeparator} `)}${colorModeLabel(
+					ctx,
+					config,
+					mode,
+					mode.label,
+				)}${colorModeLabel(ctx, config, mode, " ")}`;
+
+				const cwd = amp.showCwd ? formatCwd(ctx.cwd) : "";
+				const branchText = amp.showBranch && branch ? ` (${branch})` : "";
+				const bottomRight = ctx.ui.theme.fg("muted", ` ${cwd}${branchText} `);
+				const border = (text: string) => this.borderColor(text);
+
+				lines[0] = fitBorder("", topRight, width, { leftCorner: "╭", rightCorner: "╮", line: "─" }, border);
+				lines[lines.length - 1] = fitBorder(
+					"",
+					bottomRight,
+					width,
+					{ leftCorner: "╰", rightCorner: "╯", line: "─" },
+					border,
+				);
+				return lines;
+			}
+		}
+
+		ctx.ui.setEditorComponent((tui, theme, keybindings) => new AmpEditor(tui, theme, keybindings));
+	}
 
 	async function cycle(ctx: ExtensionContext) {
 		config = readConfig();
-		const order: ModeName[] = ["deep", "rush", "smart"];
+		const order = modeNames(config);
 		const current = modeForCurrentState(ctx, pi, config) ?? config.currentMode;
-		const currentIndex = order.indexOf(current);
-		const next = order[(currentIndex + 1) % order.length] ?? "deep";
+		const currentIndex = Math.max(0, order.indexOf(current));
+		const next = order[(currentIndex + 1) % order.length] ?? order[0] ?? "deep";
 		await applyMode(next, ctx, pi, config);
+		requestRender();
 	}
 
 	async function switchMode(args: string | undefined, ctx: ExtensionContext) {
@@ -143,39 +388,62 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 			await cycle(ctx);
 			return;
 		}
-		if (requested !== "deep" && requested !== "rush" && requested !== "smart") {
-			ctx.ui.notify("Usage: /agent-mode [deep|rush|smart|toggle]", "warning");
+		if (!config.modes[requested]) {
+			ctx.ui.notify(`Usage: /agent-mode [${modeNames(config).join("|")}|toggle]`, "warning");
 			return;
 		}
 		await applyMode(requested, ctx, pi, config);
+		requestRender();
 	}
 
 	pi.registerShortcut(Key.alt("m"), {
-		description: "Cycle Pi agent mode (deep/rush/smart)",
+		description: "Cycle Pi agent mode",
 		handler: cycle,
 	});
 
 	pi.registerShortcut(Key.f8, {
-		description: "Cycle Pi agent mode (deep/rush/smart)",
+		description: "Cycle Pi agent mode",
 		handler: cycle,
 	});
 
+	pi.registerShortcut(Key.f9, {
+		description: "Toggle Amp UI tokens/cost metric",
+		handler: (ctx) => toggleAmpMetric(ctx),
+	});
+
 	pi.registerCommand("agent-mode", {
-		description: "Switch Pi agent mode: deep | rush | smart | toggle",
+		description: "Switch Pi agent mode: <mode> | toggle",
 		handler: switchMode,
 	});
 
+	pi.registerCommand("amp-ui-metric", {
+		description: "Toggle Amp-style editor metric between tokens and cost",
+		handler: async (_args, ctx) => toggleAmpMetric(ctx),
+	});
 
 	pi.on("session_start", async (_event, ctx) => {
 		config = readConfig();
 		setStatus(ctx, pi, config);
+		installAmpUi(ctx);
+	});
+
+	pi.on("session_shutdown", () => {
+		activeTui = undefined;
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
 		setStatus(ctx, pi, config);
+		requestRender();
 	});
 
 	pi.on("thinking_level_select", async (_event, ctx) => {
 		setStatus(ctx, pi, config);
+		requestRender();
+	});
+
+	pi.on("agent_end", async (_event, ctx) => {
+		config = readConfig();
+		void refreshBranch(ctx);
+		requestRender();
 	});
 }

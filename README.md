@@ -52,21 +52,36 @@ The active mode is shown in the Pi footer/status area.
 
 ## Usage
 
-- Press `Alt+M` or `F8` to cycle `deep → rush → smart`.
-- Run `/agent-mode deep`, `/agent-mode rush`, `/agent-mode smart`, or `/agent-mode toggle`.
-
-`/agent-mode` is the only slash command registered by this extension.
+- Press `Alt+M` or `F8` to cycle modes.
+- Run `/agent-mode <mode>` or `/agent-mode toggle`.
+- When Amp UI is enabled, press `F9`, run `/amp-ui-metric`, or click in the editor to switch between token and cost display.
 
 ## Configuration
 
 Mode settings are read from `~/.pi/agent/modes.json`. If the file does not exist, the extension uses the defaults shown below.
 
-Create or edit `~/.pi/agent/modes.json` to customize providers, models, thinking levels, and labels:
+Create or edit `~/.pi/agent/modes.json` to customize providers, models, thinking levels, labels, and the optional Amp-style editor UI.
+
+The Amp-style UI is disabled by default. Enable it with `"ampUi": { "enabled": true }`. When enabled, it replaces the Pi header/footer with a minimal Amp-like prompt line and editor border; press `F9`, run `/amp-ui-metric`, or click in the editor to switch the top-right metric between tokens and cost.
 
 ```json
 {
   "version": 1,
   "currentMode": "deep",
+  "ampUi": {
+    "enabled": false,
+    "greeting": "Hi! What would you like to work on?",
+    "metric": "tokens",
+    "hideFooter": true,
+    "showHeader": true,
+    "showCwd": true,
+    "showBranch": true,
+    "tokensSuffix": "tok",
+    "modeSeparator": "—",
+    "modeColors": {
+      "rush": "#f1c85b"
+    }
+  },
   "modes": {
     "deep": {
       "provider": "openai-codex",
