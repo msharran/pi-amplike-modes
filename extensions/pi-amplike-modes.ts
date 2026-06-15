@@ -48,7 +48,6 @@ interface ModesConfig {
 
 const CONFIG_PATH = join(getAgentDir(), "modes.json");
 const STATUS_KEY = "pi-amplike-modes";
-const DEFAULT_MODE_ORDER = ["deep", "rush", "smart"];
 const THINKING_LEVEL_COLORS: Record<ThinkingLevel, ThemeColor> = {
 	off: "thinkingOff",
 	minimal: "thinkingMinimal",
@@ -107,6 +106,10 @@ const DEFAULT_CONFIG: ModesConfig = {
 function readConfig(): ModesConfig {
 	try {
 		const parsed = JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as Partial<ModesConfig>;
+		const modes: Record<ModeName, AgentMode> = parsed.modes ? { ...parsed.modes } : { ...DEFAULT_CONFIG.modes };
+		for (const [name, mode] of Object.entries(DEFAULT_CONFIG.modes)) {
+			modes[name] ??= mode;
+		}
 		return {
 			...DEFAULT_CONFIG,
 			...parsed,
@@ -114,10 +117,7 @@ function readConfig(): ModesConfig {
 				...DEFAULT_AMP_UI,
 				...(parsed.ampUi ?? {}),
 			},
-			modes: {
-				...DEFAULT_CONFIG.modes,
-				...(parsed.modes ?? {}),
-			},
+			modes,
 		} as ModesConfig;
 	} catch {
 		return DEFAULT_CONFIG;
@@ -129,21 +129,19 @@ function writeConfig(config: ModesConfig) {
 }
 
 function modeNames(config: ModesConfig): ModeName[] {
-	const names = Object.keys(config.modes);
-	const preferred = DEFAULT_MODE_ORDER.filter((name) => names.includes(name));
-	const rest = names.filter((name) => !preferred.includes(name));
-	return [...preferred, ...rest];
+	return Object.keys(config.modes);
+}
+
+function modeMatchesCurrentState(mode: AgentMode | undefined, ctx: ExtensionContext, pi: ExtensionAPI): boolean {
+	return mode?.provider === ctx.model?.provider && mode.modelId === ctx.model?.id && mode.thinkingLevel === pi.getThinkingLevel();
 }
 
 function modeForCurrentState(ctx: ExtensionContext, pi: ExtensionAPI, config: ModesConfig): ModeName | undefined {
-	const provider = ctx.model?.provider;
-	const modelId = ctx.model?.id;
-	const thinkingLevel = pi.getThinkingLevel();
+	if (modeMatchesCurrentState(config.modes[config.currentMode], ctx, pi)) {
+		return config.currentMode;
+	}
 
-	return modeNames(config).find((name) => {
-		const mode = config.modes[name];
-		return mode.provider === provider && mode.modelId === modelId && mode.thinkingLevel === thinkingLevel;
-	});
+	return modeNames(config).find((name) => modeMatchesCurrentState(config.modes[name], ctx, pi));
 }
 
 function colorForThinkingLevel(level: ThinkingLevel): ThemeColor {
