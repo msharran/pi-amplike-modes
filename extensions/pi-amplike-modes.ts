@@ -81,26 +81,26 @@ const DEFAULT_AMP_UI: AmpUiConfig = {
 };
 const DEFAULT_CONFIG: ModesConfig = {
 	version: 1,
-	currentMode: "deep",
+	currentMode: "deep²",
 	ampUi: DEFAULT_AMP_UI,
 	modes: {
-		deep: {
-			provider: "openai-codex",
-			modelId: "gpt-5.5",
-			thinkingLevel: "medium",
-			label: "deep",
-		},
 		rush: {
 			provider: "openai-codex",
 			modelId: "gpt-5.5",
 			thinkingLevel: "off",
 			label: "rush",
 		},
-		smart: {
+		"deep²": {
+			provider: "openai-codex",
+			modelId: "gpt-5.5",
+			thinkingLevel: "medium",
+			label: "deep²",
+		},
+		"deep³": {
 			provider: "openai-codex",
 			modelId: "gpt-5.5",
 			thinkingLevel: "xhigh",
-			label: "smart",
+			label: "deep³",
 		},
 	},
 };
@@ -109,9 +109,6 @@ function readConfig(): ModesConfig {
 	try {
 		const parsed = JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as Partial<ModesConfig>;
 		const modes: Record<ModeName, AgentMode> = parsed.modes ? { ...parsed.modes } : { ...DEFAULT_CONFIG.modes };
-		for (const [name, mode] of Object.entries(DEFAULT_CONFIG.modes)) {
-			modes[name] ??= mode;
-		}
 		return {
 			...DEFAULT_CONFIG,
 			...parsed,
