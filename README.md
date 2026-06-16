@@ -54,7 +54,7 @@ The active mode is shown in the Pi footer/status area.
 
 - Press `Alt+M` or `F8` to cycle modes.
 - Run `/agent-mode <mode>` or `/agent-mode toggle`.
-- When Amp UI is enabled, press `F9`, run `/amp-ui-metric`, or click in the editor to switch between token and cost display.
+- When Amp UI is enabled, the editor displays cost and tokens before the active mode.
 
 ## Configuration
 
@@ -62,7 +62,7 @@ Mode settings are read from `~/.pi/agent/modes.json`. If the file does not exist
 
 Create or edit `~/.pi/agent/modes.json` to customize providers, models, thinking levels, labels, and the optional Amp-style editor UI.
 
-The Amp-style UI is disabled by default. Enable it with `"ampUi": { "enabled": true }`. When enabled, it replaces the Pi header/footer with a minimal Amp-like prompt line and editor border; press `F9`, run `/amp-ui-metric`, or click in the editor to switch the top-right metric between tokens and cost.
+The Amp-style UI is disabled by default. Enable it with `"ampUi": { "enabled": true }`. When enabled, it replaces the Pi header/footer with a minimal Amp-like prompt line and editor border; the editor shows cost, tokens, mode, directory, and branch using Amp-like muted chrome.
 
 ```json
 {
@@ -84,6 +84,7 @@ The Amp-style UI is disabled by default. Enable it with `"ampUi": { "enabled": t
       "rush": "#f1c85b"
     },
     "borderColor": "#a9afbd",
+    "textColor": "#8f96a3",
     "editorPaddingX": 2,
     "minInputRows": 2,
     "bottomPaddingRows": 1

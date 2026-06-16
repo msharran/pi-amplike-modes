@@ -34,6 +34,7 @@ interface AmpUiConfig {
 	modeSeparator: string;
 	modeColors: Record<string, string>;
 	borderColor: string;
+	textColor: string;
 	editorPaddingX: number;
 	minInputRows: number;
 	bottomPaddingRows: number;
@@ -73,6 +74,7 @@ const DEFAULT_AMP_UI: AmpUiConfig = {
 		rush: "#f1c85b",
 	},
 	borderColor: "#a9afbd",
+	textColor: "#8f96a3",
 	editorPaddingX: 2,
 	minInputRows: 2,
 	bottomPaddingRows: 1,
@@ -368,9 +370,9 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 				}
 
 				const mode = labelForMode(ctx, pi, config);
-				const metric = amp.metric === "cost" ? formatCost(ctx) : formatTokens(ctx);
-				const metricSuffix = amp.metric === "tokens" ? ` ${amp.tokensSuffix}` : "";
-				const topRight = `${ctx.ui.theme.fg("muted", ` ${metric}${metricSuffix} ${amp.modeSeparator} `)}${colorModeLabel(
+				const subtleText = (text: string) => hexColor(text, amp.textColor) ?? ctx.ui.theme.fg("muted", text);
+				const metricsText = `${formatCost(ctx)} ${amp.modeSeparator} ${formatTokens(ctx)} ${amp.tokensSuffix} ${amp.modeSeparator} `;
+				const topRight = `${subtleText(` ${metricsText}`)}${colorModeLabel(
 					ctx,
 					config,
 					mode,
@@ -379,7 +381,7 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 
 				const cwd = amp.showCwd ? formatCwd(ctx.cwd) : "";
 				const branchText = amp.showBranch && branch ? ` (${branch})` : "";
-				const bottomRight = ctx.ui.theme.fg("muted", ` ${cwd}${branchText} `);
+				const bottomRight = subtleText(` ${cwd}${branchText} `);
 
 				lines[0] = fitBorder("", topRight, width, { leftCorner: "╭", rightCorner: "╮", line: "─" }, border);
 				lines[lines.length - 1] = fitBorder(
