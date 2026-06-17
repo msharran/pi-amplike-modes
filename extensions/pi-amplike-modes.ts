@@ -8,16 +8,8 @@ import {
 	type KeybindingsManager,
 	type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
-import type { AutocompleteItem, AutocompleteProvider, EditorTheme, TUI } from "@earendil-works/pi-tui";
-import {
-	CURSOR_MARKER,
-	decodeKittyPrintable,
-	fuzzyFilter,
-	Key,
-	matchesKey,
-	truncateToWidth,
-	visibleWidth,
-} from "@earendil-works/pi-tui";
+import type { AutocompleteItem, EditorTheme, TUI } from "@earendil-works/pi-tui";
+import { fuzzyFilter, Key, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 type ModeName = string;
@@ -112,38 +104,6 @@ const DEFAULT_CONFIG: ModesConfig = {
 		},
 	},
 };
-const PALETTE_TITLE_COLOR = "#e7c879";
-const PALETTE_SELECTED_BG = "#dfc37b";
-const PALETTE_SELECTED_FG = "#20242f";
-const PALETTE_MUTED_FG = "#a9afbd";
-const PALETTE_ACTION_FG = "#b9beca";
-const PALETTE_SHORTCUT_FG = "#80b7ff";
-const PALETTE_MIN_ITEM_ROWS = 12;
-const PALETTE_MAX_ITEM_ROWS = 16;
-const PI_PALETTE_ITEMS: AutocompleteItem[] = [
-	{ value: "settings", label: "settings", description: "Open settings menu" },
-	{ value: "model", label: "model", description: "Select model (opens selector UI)" },
-	{ value: "scoped-models", label: "scoped-models", description: "Enable/disable models for Ctrl+P cycling" },
-	{ value: "export", label: "export", description: "Export session (HTML default, or specify path: .html/.jsonl)" },
-	{ value: "import", label: "import", description: "Import and resume a session from a JSONL file" },
-	{ value: "share", label: "share", description: "Share session as a secret GitHub gist" },
-	{ value: "copy", label: "copy", description: "Copy last agent message to clipboard" },
-	{ value: "name", label: "name", description: "Set session display name" },
-	{ value: "session", label: "session", description: "Show session info and stats" },
-	{ value: "changelog", label: "changelog", description: "Show changelog entries" },
-	{ value: "hotkeys", label: "hotkeys", description: "Show all keyboard shortcuts" },
-	{ value: "fork", label: "fork", description: "Create a new fork from a previous user message" },
-	{ value: "clone", label: "clone", description: "Duplicate the current session at the current position" },
-	{ value: "tree", label: "tree", description: "Navigate session tree (switch branches)" },
-	{ value: "trust", label: "trust", description: "Save project trust decision for future sessions" },
-	{ value: "login", label: "login", description: "Configure provider authentication" },
-	{ value: "logout", label: "logout", description: "Remove provider authentication" },
-	{ value: "new", label: "new", description: "Start a new session" },
-	{ value: "compact", label: "compact", description: "Manually compact the session context" },
-	{ value: "resume", label: "resume", description: "Resume a different session" },
-	{ value: "reload", label: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes" },
-	{ value: "quit", label: "quit", description: "Quit pi" },
-];
 
 function readConfig(): ModesConfig {
 	try {
@@ -206,24 +166,6 @@ function hexColor(text: string, value: string): string | undefined {
 	if (!rgb) return undefined;
 	const [red, green, blue] = rgb;
 	return `\x1b[38;2;${red};${green};${blue}m${text}\x1b[39m`;
-}
-
-function hexBg(text: string, value: string): string | undefined {
-	const rgb = rgbFromHex(value);
-	if (!rgb) return undefined;
-	const [red, green, blue] = rgb;
-	return `\x1b[48;2;${red};${green};${blue}m${text}\x1b[49m`;
-}
-
-function hexFgBg(text: string, fg: string, bg: string): string | undefined {
-	const fgRgb = rgbFromHex(fg);
-	const bgRgb = rgbFromHex(bg);
-	if (!fgRgb || !bgRgb) return undefined;
-	return `\x1b[38;2;${fgRgb[0]};${fgRgb[1]};${fgRgb[2]}m\x1b[48;2;${bgRgb[0]};${bgRgb[1]};${bgRgb[2]}m${text}\x1b[39m\x1b[49m`;
-}
-
-function bold(text: string): string {
-	return `\x1b[1m${text}\x1b[22m`;
 }
 
 function colorModeLabel(
@@ -315,28 +257,7 @@ function isMouseInput(data: string): boolean {
 }
 
 interface AutocompleteListLike {
-	filteredItems?: AutocompleteItem[];
-	items?: AutocompleteItem[];
-	selectedIndex?: number;
 	render?: (width: number) => string[];
-}
-
-interface PaletteRowParts {
-	group: string;
-	action: string;
-	right: string;
-}
-
-interface PaletteRowLayout extends PaletteRowParts {
-	gap: string;
-	padding: string;
-}
-
-type PaletteAction = "execute" | "complete";
-
-interface PaletteResult {
-	action: PaletteAction;
-	item: AutocompleteItem;
 }
 
 function padToWidth(text: string, width: number): string {
@@ -344,22 +265,8 @@ function padToWidth(text: string, width: number): string {
 	return `${truncated}${" ".repeat(Math.max(0, width - visibleWidth(truncated)))}`;
 }
 
-function clampIndex(value: number, max: number): number {
-	if (max <= 0) return 0;
-	return Math.max(0, Math.min(value, max - 1));
-}
-
 function getAutocompleteList(editor: unknown): AutocompleteListLike | undefined {
 	return (editor as { autocompleteList?: AutocompleteListLike }).autocompleteList;
-}
-
-function getAutocompleteItems(editor: unknown): AutocompleteItem[] {
-	const list = getAutocompleteList(editor);
-	return list?.filteredItems ?? list?.items ?? [];
-}
-
-function getAutocompleteSelectedIndex(editor: unknown, itemCount: number): number {
-	return clampIndex(getAutocompleteList(editor)?.selectedIndex ?? 0, itemCount);
 }
 
 function getAutocompleteLineCount(editor: { isShowingAutocomplete?: () => boolean }, contentWidth: number): number {
@@ -371,231 +278,6 @@ function getAutocompleteLineCount(editor: { isShowingAutocomplete?: () => boolea
 	} catch {
 		return 0;
 	}
-}
-
-function slashPaletteQuery(editor: { getCursor?: () => { line: number; col: number }; getLines?: () => string[] }): string | undefined {
-	const cursor = editor.getCursor?.();
-	const lines = editor.getLines?.() ?? [];
-	if (!cursor || cursor.line !== 0) return undefined;
-	const beforeCursor = (lines[cursor.line] ?? "").slice(0, cursor.col);
-	const trimmed = beforeCursor.trimStart();
-	if (!trimmed.startsWith("/")) return undefined;
-	const query = trimmed.slice(1);
-	if (query.includes(" ")) return undefined;
-	return query;
-}
-
-function splitPaletteItem(item: AutocompleteItem): PaletteRowParts {
-	const label = (item.label || item.value).replace(/\s+/g, " ").trim();
-	const [group = "", ...rest] = label.split(" ");
-	if (rest.length === 0) {
-		return { group: "", action: group, right: item.description ?? "" };
-	}
-	return { group, action: rest.join(" "), right: item.description ?? "" };
-}
-
-function paletteRowLayout(parts: PaletteRowParts, groupWidth: number, rowWidth: number): PaletteRowLayout {
-	const safeRowWidth = Math.max(1, rowWidth);
-	const safeGroupWidth = Math.max(0, Math.min(groupWidth, Math.max(0, safeRowWidth - 3)));
-	const group = truncateToWidth(parts.group, safeGroupWidth, "").padStart(safeGroupWidth);
-	let right = parts.right ? truncateToWidth(parts.right, Math.min(24, Math.max(0, Math.floor(safeRowWidth * 0.35))), "") : "";
-	let actionWidth = safeRowWidth - safeGroupWidth - 2 - (right ? visibleWidth(right) + 2 : 0);
-	if (right && actionWidth < 8) {
-		right = "";
-		actionWidth = safeRowWidth - safeGroupWidth - 2;
-	}
-	const action = truncateToWidth(parts.action, Math.max(1, actionWidth), "");
-	const leftWidth = safeGroupWidth + 2 + visibleWidth(action);
-	const rightWidth = visibleWidth(right);
-	const gap = right ? " ".repeat(Math.max(2, safeRowWidth - leftWidth - rightWidth)) : "";
-	const usedWidth = leftWidth + visibleWidth(gap) + rightWidth;
-	return { group, action, right, gap, padding: " ".repeat(Math.max(0, safeRowWidth - usedWidth)) };
-}
-
-function isShortcutText(text: string): boolean {
-	return /^(Ctrl|Opt|Alt|Shift|Cmd|⌘|F\d+)/i.test(text.trim());
-}
-
-function renderPaletteRow(item: AutocompleteItem, groupWidth: number, rowWidth: number, selected: boolean): string {
-	const layout = paletteRowLayout(splitPaletteItem(item), groupWidth, rowWidth);
-	const plain = padToWidth(`${layout.group}  ${layout.action}${layout.gap}${layout.right}`, rowWidth);
-	if (selected) {
-		return hexFgBg(plain, PALETTE_SELECTED_FG, PALETTE_SELECTED_BG) ?? plain;
-	}
-
-	const group = layout.group.trim().length > 0 ? (hexColor(layout.group, PALETTE_MUTED_FG) ?? layout.group) : layout.group;
-	const action = hexColor(bold(layout.action), PALETTE_ACTION_FG) ?? bold(layout.action);
-	const rightColor = isShortcutText(layout.right) ? PALETTE_SHORTCUT_FG : PALETTE_MUTED_FG;
-	const right = layout.right ? (hexColor(bold(layout.right), rightColor) ?? bold(layout.right)) : "";
-	return `${group}  ${action}${layout.gap}${right}${layout.padding}`;
-}
-
-function renderPaletteTop(width: number, border: (text: string) => string): string {
-	if (width <= 1) return border("─".repeat(Math.max(0, width)));
-	const titleText = " Command Palette ";
-	const title = hexColor(bold(titleText), PALETTE_TITLE_COLOR) ?? bold(titleText);
-	const left = `${border("╭─")}${title}`;
-	const remaining = Math.max(0, width - visibleWidth(`╭─${titleText}`) - 1);
-	return `${left}${border("─".repeat(remaining))}${border("╮")}`;
-}
-
-function renderPaletteLine(content: string, width: number, border: (text: string) => string): string {
-	const innerWidth = Math.max(0, width - 2);
-	return `${border("│")}${padToWidth(content, innerWidth)}${border("│")}`;
-}
-
-function renderAmpCommandPalette(
-	width: number,
-	terminalRows: number,
-	query: string,
-	items: AutocompleteItem[],
-	selectedIndex: number,
-	focused: boolean,
-	config: ModesConfig,
-): string[] {
-	const border = (text: string) => hexColor(text, config.ampUi.borderColor) ?? text;
-	const innerWidth = Math.max(0, width - 2);
-	const rowMargin = innerWidth >= 6 ? 2 : 0;
-	const rowWidth = Math.max(1, innerWidth - rowMargin * 2);
-	const availableRows = Math.min(PALETTE_MAX_ITEM_ROWS, Math.max(1, terminalRows - 7));
-	const desiredRows = query.length === 0 ? Math.max(1, Math.min(items.length || 1, availableRows)) : PALETTE_MIN_ITEM_ROWS;
-	const itemSlots = Math.max(1, Math.min(availableRows, desiredRows));
-	const selected = clampIndex(selectedIndex, items.length);
-	const startIndex = Math.max(0, Math.min(selected - Math.floor(itemSlots / 2), Math.max(0, items.length - itemSlots)));
-	const visibleItems = items.slice(startIndex, startIndex + itemSlots);
-	const groupWidth = Math.max(
-		5,
-		Math.min(
-			10,
-			visibleItems.reduce((widest, item) => Math.max(widest, visibleWidth(splitPaletteItem(item).group)), 0),
-		),
-	);
-	const cursor = focused ? `${CURSOR_MARKER}${hexBg(" ", PALETTE_MUTED_FG) ?? "\x1b[7m \x1b[0m"}` : (hexBg(" ", PALETTE_MUTED_FG) ?? "█");
-	const prompt = hexColor("> ", PALETTE_MUTED_FG) ?? "> ";
-	const queryText = hexColor(query, PALETTE_ACTION_FG) ?? query;
-	const lines = [renderPaletteTop(width, border)];
-	lines.push(renderPaletteLine(`  ${prompt}${queryText}${cursor}`, width, border));
-	lines.push(renderPaletteLine("", width, border));
-
-	if (items.length === 0) {
-		const noMatch = hexColor("  No matching commands", PALETTE_MUTED_FG) ?? "  No matching commands";
-		lines.push(renderPaletteLine(noMatch, width, border));
-		for (let index = 1; index < itemSlots; index++) lines.push(renderPaletteLine("", width, border));
-	} else {
-		for (let slot = 0; slot < itemSlots; slot++) {
-			const item = visibleItems[slot];
-			if (!item) {
-				lines.push(renderPaletteLine("", width, border));
-				continue;
-			}
-			const absoluteIndex = startIndex + slot;
-			const row = renderPaletteRow(item, groupWidth, rowWidth, absoluteIndex === selected);
-			lines.push(renderPaletteLine(`${" ".repeat(rowMargin)}${row}${" ".repeat(rowMargin)}`, width, border));
-		}
-		if (items.length > itemSlots) {
-			const scrollText = hexColor(`  (${selected + 1}/${items.length})`, PALETTE_MUTED_FG) ?? `  (${selected + 1}/${items.length})`;
-			lines.splice(lines.length - 1, 1, renderPaletteLine(scrollText, width, border));
-		}
-	}
-
-	lines.push(`${border("╰")}${border("─".repeat(Math.max(0, width - 2)))}${border("╯")}`);
-	return lines;
-}
-
-function agentModePaletteItems(sourceConfig: ModesConfig): AutocompleteItem[] {
-	const items = modeNames(sourceConfig).map((name) => {
-		const mode = sourceConfig.modes[name];
-		const label = mode?.label ?? name;
-		return { value: `agent-mode ${name}`, label: `agent-mode ${label}`, description: `Switch to ${label}` };
-	});
-	items.push({ value: "agent-mode toggle", label: "agent-mode toggle", description: "Cycle Pi agent mode (Alt+M/F8)" });
-	return items;
-}
-
-function paletteItems(sourceConfig: ModesConfig, query: string): AutocompleteItem[] {
-	const baseItems = [...PI_PALETTE_ITEMS, ...agentModePaletteItems(sourceConfig)];
-	const seen = new Set<string>();
-	const uniqueItems = baseItems.filter((item) => {
-		const key = `${item.value}\u0000${item.label}`;
-		if (seen.has(key)) return false;
-		seen.add(key);
-		return true;
-	});
-	return query
-		? fuzzyFilter(uniqueItems, query, (item) => `${item.label} ${item.value} ${item.description ?? ""}`)
-		: uniqueItems;
-}
-
-class AmpCommandPaletteComponent {
-	focused = false;
-	private query = "";
-	private selectedIndex = 0;
-
-	constructor(
-		private readonly tui: TUI,
-		private readonly keybindings: KeybindingsManager,
-		private readonly getConfig: () => ModesConfig,
-		private readonly done: (result: PaletteResult | null) => void,
-	) {}
-
-	private items(): AutocompleteItem[] {
-		return paletteItems(this.getConfig(), this.query);
-	}
-
-	handleInput(data: string): void {
-		const items = this.items();
-		if (this.keybindings.matches(data, "tui.select.cancel")) {
-			this.done(null);
-			return;
-		}
-		if (this.keybindings.matches(data, "tui.select.up")) {
-			this.selectedIndex = items.length === 0 ? 0 : (this.selectedIndex + items.length - 1) % items.length;
-			this.tui.requestRender();
-			return;
-		}
-		if (this.keybindings.matches(data, "tui.select.down")) {
-			this.selectedIndex = items.length === 0 ? 0 : (this.selectedIndex + 1) % items.length;
-			this.tui.requestRender();
-			return;
-		}
-		if (this.keybindings.matches(data, "tui.select.confirm")) {
-			const item = items[clampIndex(this.selectedIndex, items.length)] ?? null;
-			this.done(item ? { action: "execute", item } : null);
-			return;
-		}
-		if (this.keybindings.matches(data, "tui.input.tab")) {
-			const item = items[clampIndex(this.selectedIndex, items.length)] ?? null;
-			this.done(item ? { action: "complete", item } : null);
-			return;
-		}
-		if (this.keybindings.matches(data, "tui.editor.deleteCharBackward") || matchesKey(data, "shift+backspace")) {
-			this.query = this.query.slice(0, -1);
-			this.selectedIndex = 0;
-			this.tui.requestRender();
-			return;
-		}
-		if (this.keybindings.matches(data, "tui.editor.deleteToLineStart") || matchesKey(data, Key.ctrl("u"))) {
-			this.query = "";
-			this.selectedIndex = 0;
-			this.tui.requestRender();
-			return;
-		}
-
-		const printable = decodeKittyPrintable(data) ?? (data.length === 1 && data.charCodeAt(0) >= 32 ? data : undefined);
-		if (printable !== undefined && !printable.includes("\x1b")) {
-			this.query += printable;
-			this.selectedIndex = 0;
-			this.tui.requestRender();
-		}
-	}
-
-	render(width: number): string[] {
-		const items = this.items();
-		this.selectedIndex = clampIndex(this.selectedIndex, items.length);
-		return renderAmpCommandPalette(width, this.tui.terminal.rows, this.query, items, this.selectedIndex, this.focused, this.getConfig());
-	}
-
-	invalidate(): void {}
 }
 
 class EmptyComponent {
@@ -636,9 +318,7 @@ async function applyMode(name: ModeName, ctx: ExtensionContext, pi: ExtensionAPI
 export default function piAmplikeModes(pi: ExtensionAPI) {
 	let config = readConfig();
 	let activeTui: TUI | undefined;
-	let activeEditor: CustomEditor | undefined;
 	let branch: string | undefined;
-	let paletteOpen = false;
 
 	const requestRender = () => activeTui?.requestRender();
 
@@ -662,107 +342,11 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 		return modeNames(sourceConfig).find((name) => name === normalized || sourceConfig.modes[name]?.label === normalized);
 	}
 
-	function installAmpAutocomplete(ctx: ExtensionContext) {
-		ctx.ui.addAutocompleteProvider((current: AutocompleteProvider): AutocompleteProvider => ({
-			triggerCharacters: current.triggerCharacters,
-			async getSuggestions(lines, cursorLine, cursorCol, options) {
-				const line = lines[cursorLine] ?? "";
-				const beforeCursor = line.slice(0, cursorCol);
-				const trimmed = beforeCursor.trimStart();
-				if (cursorLine === 0 && trimmed.startsWith("/") && !trimmed.slice(1).includes(" ")) {
-					const query = trimmed.slice(1);
-					const sourceConfig = readConfig();
-					const currentSuggestions = await current.getSuggestions(lines, cursorLine, cursorCol, options);
-					const hiddenCommands = new Set(["agent-mode", "amp-ui-metric"]);
-					const currentItems = query
-						? (currentSuggestions?.items ?? []).filter((item) => !hiddenCommands.has(item.value))
-						: [];
-					const seen = new Set<string>();
-					const combined = [...PI_PALETTE_ITEMS, ...agentModePaletteItems(sourceConfig), ...currentItems].filter((item) => {
-						const key = `${item.value}\u0000${item.label}`;
-						if (seen.has(key)) return false;
-						seen.add(key);
-						return true;
-					});
-					const filtered = query
-						? fuzzyFilter(combined, query, (item) => `${item.label} ${item.value} ${item.description ?? ""}`)
-						: combined;
-					return filtered.length > 0 ? { prefix: beforeCursor, items: filtered } : null;
-				}
-				return current.getSuggestions(lines, cursorLine, cursorCol, options);
-			},
-			applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
-				return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
-			},
-			shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
-				return current.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? true;
-			},
-		}));
-	}
-
-	function shouldOpenPalette(editor: { getText?: () => string; getCursor?: () => { line: number; col: number } }): boolean {
-		const cursor = editor.getCursor?.();
-		return Boolean(cursor && cursor.line === 0 && cursor.col === 0 && (editor.getText?.() ?? "").trim() === "");
-	}
-
-	function paletteCommandValue(item: AutocompleteItem): string {
-		return item.value.trim().replace(/^\/+/, "");
-	}
-
-	function paletteCommandText(item: AutocompleteItem): string {
-		const command = paletteCommandValue(item);
-		return command ? `/${command} ` : "/";
-	}
-
-	function executePaletteItem(item: AutocompleteItem, ctx: ExtensionContext) {
-		const command = paletteCommandText(item).trimEnd();
-		ctx.ui.setEditorText(command);
-		if (activeEditor) {
-			activeEditor.handleInput("\r");
-			return;
-		}
-		pi.sendUserMessage(command);
-	}
-
-	function completePaletteItem(item: AutocompleteItem, ctx: ExtensionContext) {
-		ctx.ui.setEditorText(paletteCommandText(item));
-		requestRender();
-	}
-
-	function showCommandPalette(ctx: ExtensionContext) {
-		if (paletteOpen) return;
-		paletteOpen = true;
-		void ctx.ui
-			.custom<PaletteResult | null>(
-				(tui, _theme, keybindings, done) => new AmpCommandPaletteComponent(tui, keybindings, readConfig, done),
-				{
-					overlay: true,
-					overlayOptions: {
-						width: "96%",
-						minWidth: 64,
-						anchor: "center",
-						margin: 1,
-					},
-				},
-			)
-			.then((result) => {
-				paletteOpen = false;
-				if (result?.action === "execute") executePaletteItem(result.item, ctx);
-				else if (result?.action === "complete") completePaletteItem(result.item, ctx);
-				requestRender();
-			})
-			.catch((error: unknown) => {
-				paletteOpen = false;
-				ctx.ui.notify(`Command palette failed: ${error instanceof Error ? error.message : String(error)}`, "error");
-			});
-	}
-
 	function installAmpUi(ctx: ExtensionContext) {
 		if (ctx.mode !== "tui" || !config.ampUi.enabled) {
 			ctx.ui.setHeader(undefined);
 			ctx.ui.setFooter(undefined);
 			ctx.ui.setEditorComponent(undefined);
-			activeEditor = undefined;
 			return;
 		}
 
@@ -781,23 +365,16 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 		}
 
 		void refreshBranch(ctx);
-		installAmpAutocomplete(ctx);
 
 		class AmpEditor extends CustomEditor {
 			constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) {
 				super(tui, theme, keybindings, { paddingX: config.ampUi.editorPaddingX });
 				activeTui = tui;
-				activeEditor = this;
 			}
 
 			handleInput(data: string): void {
 				if (isMouseInput(data)) {
 					toggleAmpMetric();
-					return;
-				}
-				const printable = decodeKittyPrintable(data) ?? (data.length === 1 ? data : undefined);
-				if (printable === "/" && shouldOpenPalette(this)) {
-					showCommandPalette(ctx);
 					return;
 				}
 				super.handleInput(data);
@@ -807,20 +384,6 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 				const innerWidth = Math.max(1, width - 2);
 				const rendered = super.render(innerWidth);
 				if (rendered.length < 2) return rendered;
-
-				const query = slashPaletteQuery(this);
-				if (query !== undefined && this.isShowingAutocomplete()) {
-					const items = getAutocompleteItems(this);
-					return renderAmpCommandPalette(
-						width,
-						this.tui.terminal.rows,
-						query,
-						items,
-						getAutocompleteSelectedIndex(this, items.length),
-						this.focused,
-						config,
-					);
-				}
 
 				const paddingX = Math.min(this.getPaddingX(), Math.max(0, Math.floor((innerWidth - 1) / 2)));
 				const autocompleteLineCount = getAutocompleteLineCount(this, Math.max(1, innerWidth - paddingX * 2));
@@ -942,7 +505,6 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 
 	pi.on("session_shutdown", () => {
 		activeTui = undefined;
-		activeEditor = undefined;
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
