@@ -455,7 +455,7 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 					config,
 					mode,
 					mode.label,
-				)}${subtleText(" - ")}`;
+				)}${subtleText(" ")}`;
 
 				const cwd = amp.showCwd ? formatCwd(ctx.cwd) : "";
 				const branchText = amp.showBranch && branch ? ` (${branch})` : "";
