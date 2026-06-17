@@ -279,27 +279,18 @@ function sessionUsageStats(ctx: ExtensionContext): AmpUsageStats {
 	return stats;
 }
 
-function formatContextUsage(ctx: ExtensionContext): string {
-	const usage = ctx.getContextUsage();
-	const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
-	const percent = usage?.percent;
-	const percentText = percent === null || percent === undefined ? "?" : `${percent.toFixed(1)}%`;
-	return `${percentText}/${formatTokenCount(contextWindow)} (auto)`;
+function formatContextPercent(ctx: ExtensionContext): string {
+	const percent = ctx.getContextUsage()?.percent;
+	return percent === null || percent === undefined ? "?" : `${percent.toFixed(1)}%`;
 }
 
 function topMetricParts(ctx: ExtensionContext): string[] {
 	const stats = sessionUsageStats(ctx);
 	const parts: string[] = [];
-	if (stats.input) parts.push(`↑${formatTokenCount(stats.input)}`);
-	if (stats.output) parts.push(`↓${formatTokenCount(stats.output)}`);
-	if (stats.cacheRead) parts.push(`R${formatTokenCount(stats.cacheRead)}`);
-	if (stats.cacheWrite) parts.push(`W${formatTokenCount(stats.cacheWrite)}`);
-	if ((stats.cacheRead > 0 || stats.cacheWrite > 0) && stats.latestCacheHitRate !== undefined) {
-		parts.push(`CH${stats.latestCacheHitRate.toFixed(1)}%`);
-	}
 	const usingSubscription = ctx.model ? ctx.modelRegistry.isUsingOAuth(ctx.model) : false;
 	if (stats.cost || usingSubscription) parts.push(`$${stats.cost.toFixed(3)}${usingSubscription ? " (sub)" : ""}`);
-	parts.push(formatContextUsage(ctx));
+	parts.push(`${formatTokenCount(stats.input + stats.output + stats.cacheRead + stats.cacheWrite)} tok`);
+	parts.push(formatContextPercent(ctx));
 	return parts;
 }
 
@@ -458,7 +449,7 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 				const mode = labelForMode(ctx, pi, config);
 				const subtleText = (text: string) => hexColor(text, amp.textColor) ?? ctx.ui.theme.fg("muted", text);
 				const metricParts = topMetricParts(ctx);
-				const metricsText = `${metricParts.slice(0, -1).join(" ")} - ${metricParts.at(-1) ?? ""} - `;
+				const metricsText = `${metricParts.join(" ")} - `;
 				const topRight = `${subtleText(` ${metricsText}`)}${colorModeLabel(
 					ctx,
 					config,
