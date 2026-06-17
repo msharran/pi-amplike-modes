@@ -449,13 +449,13 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 				const mode = labelForMode(ctx, pi, config);
 				const subtleText = (text: string) => hexColor(text, amp.textColor) ?? ctx.ui.theme.fg("muted", text);
 				const metricParts = topMetricParts(ctx);
-				const metricsText = `${metricParts.join(" ")} - `;
+				const metricsText = `${metricParts.join(" - ")} - `;
 				const topRight = `${subtleText(` ${metricsText}`)}${colorModeLabel(
 					ctx,
 					config,
 					mode,
 					mode.label,
-				)}${colorModeLabel(ctx, config, mode, " ")}`;
+				)}${subtleText(" - ")}`;
 
 				const cwd = amp.showCwd ? formatCwd(ctx.cwd) : "";
 				const branchText = amp.showBranch && branch ? ` (${branch})` : "";
