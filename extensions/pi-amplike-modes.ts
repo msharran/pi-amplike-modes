@@ -8,7 +8,7 @@ import {
 	type KeybindingsManager,
 	type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
-import type { AutocompleteItem, EditorTheme, TUI } from "@earendil-works/pi-tui";
+import type { AutocompleteItem, EditorTheme, SelectListTheme, TUI } from "@earendil-works/pi-tui";
 import { fuzzyFilter, Key, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
@@ -168,6 +168,16 @@ function hexColor(text: string, value: string): string | undefined {
 	return `\x1b[38;2;${red};${green};${blue}m${text}\x1b[39m`;
 }
 
+function hexBg(text: string, value: string, fgValue?: string): string | undefined {
+	const bg = rgbFromHex(value);
+	if (!bg) return undefined;
+	const [red, green, blue] = bg;
+	const fg = fgValue ? rgbFromHex(fgValue) : undefined;
+	const fgOpen = fg ? `\x1b[38;2;${fg[0]};${fg[1]};${fg[2]}m` : "";
+	const fgClose = fg ? "\x1b[39m" : "";
+	return `\x1b[48;2;${red};${green};${blue}m${fgOpen}${text}${fgClose}\x1b[49m`;
+}
+
 function colorModeLabel(
 	ctx: ExtensionContext,
 	config: ModesConfig,
@@ -298,6 +308,17 @@ function isMouseInput(data: string): boolean {
 	return /^\x1b\[<\d+;\d+;\d+[Mm]$/.test(data) || /^\x1b\[M/.test(data);
 }
 
+function parseSgrMouse(data: string): { button: number; x: number; y: number; pressed: boolean } | undefined {
+	const match = data.match(/^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/);
+	if (!match) return undefined;
+	return {
+		button: Number(match[1]),
+		x: Number(match[2]),
+		y: Number(match[3]),
+		pressed: match[4] === "M",
+	};
+}
+
 interface AutocompleteListLike {
 	render?: (width: number) => string[];
 }
@@ -305,6 +326,35 @@ interface AutocompleteListLike {
 function padToWidth(text: string, width: number): string {
 	const truncated = truncateToWidth(text, Math.max(0, width), "");
 	return `${truncated}${" ".repeat(Math.max(0, width - visibleWidth(truncated)))}`;
+}
+
+function ampCommandPaletteSelectTheme(theme: EditorTheme): SelectListTheme {
+	return {
+		...theme.selectList,
+		selectedText: (text: string) => hexBg(text, "#e1c27d", "#24272e") ?? theme.selectList.selectedText(text),
+		description: (text: string) => hexColor(text, "#aeb4c2") ?? theme.selectList.description(text),
+		scrollInfo: (text: string) => hexColor(text, "#aeb4c2") ?? theme.selectList.scrollInfo(text),
+		noMatch: (text: string) => hexColor(text, "#aeb4c2") ?? theme.selectList.noMatch(text),
+	};
+}
+
+function commandPaletteTopBorder(width: number, title: string, color: (text: string) => string, titleColor: (text: string) => string): string {
+	if (width <= 1) return color("─".repeat(Math.max(0, width)));
+	const prefix = "╭─ ";
+	const suffix = " ";
+	const rightCorner = "╮";
+	const titleText = titleColor(title);
+	const used = visibleWidth(prefix) + visibleWidth(title) + visibleWidth(suffix) + visibleWidth(rightCorner);
+	const fill = "─".repeat(Math.max(0, width - used));
+	return `${color(prefix)}${titleText}${color(suffix + fill + rightCorner)}`;
+}
+
+function commandPaletteLine(content: string, width: number, color: (text: string) => string, selectedBg?: string): string {
+	const innerWidth = Math.max(0, width - 4);
+	const truncated = truncateToWidth(content, innerWidth, "");
+	const padding = " ".repeat(Math.max(0, innerWidth - visibleWidth(truncated)));
+	const padded = selectedBg && truncated.includes("\x1b[48;2;") ? `${truncated}${hexBg(padding, selectedBg) ?? padding}` : `${truncated}${padding}`;
+	return `${color("│ ")}${padded}${color(" │")}`;
 }
 
 function getAutocompleteList(editor: unknown): AutocompleteListLike | undefined {
@@ -409,17 +459,46 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 		void refreshBranch(ctx);
 
 		class AmpEditor extends CustomEditor {
+			private commandPaletteMouse?: { top: number; listStart: number; listCount: number };
+
 			constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) {
-				super(tui, theme, keybindings, { paddingX: config.ampUi.editorPaddingX });
+				const ampTheme: EditorTheme = { ...theme, selectList: ampCommandPaletteSelectTheme(theme) };
+				super(tui, ampTheme, keybindings, { paddingX: config.ampUi.editorPaddingX });
 				activeTui = tui;
 			}
 
 			handleInput(data: string): void {
 				if (isMouseInput(data)) {
+					if (this.handleCommandPaletteMouse(data)) return;
 					toggleAmpMetric();
 					return;
 				}
 				super.handleInput(data);
+			}
+
+			private handleCommandPaletteMouse(data: string): boolean {
+				const mouse = parseSgrMouse(data);
+				const palette = this.commandPaletteMouse;
+				if (!mouse || !mouse.pressed || mouse.button !== 0 || !palette || !this.isShowingAutocomplete()) return false;
+				const row = mouse.y - palette.top;
+				const visibleIndex = row - palette.listStart;
+				if (visibleIndex < 0 || visibleIndex >= palette.listCount) return false;
+
+				const autocompleteList = getAutocompleteList(this) as {
+					filteredItems?: unknown[];
+					selectedIndex?: number;
+					maxVisible?: number;
+					setSelectedIndex?: (index: number) => void;
+				} | undefined;
+				const filteredLength = autocompleteList?.filteredItems?.length ?? 0;
+				if (!autocompleteList?.setSelectedIndex || filteredLength === 0) return true;
+
+				const selectedIndex = autocompleteList.selectedIndex ?? 0;
+				const maxVisible = autocompleteList.maxVisible ?? palette.listCount;
+				const startIndex = Math.max(0, Math.min(selectedIndex - Math.floor(maxVisible / 2), filteredLength - maxVisible));
+				autocompleteList.setSelectedIndex(Math.min(filteredLength - 1, startIndex + visibleIndex));
+				super.handleInput("\r");
+				return true;
 			}
 
 			render(width: number): string[] {
@@ -434,6 +513,28 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 
 				const amp = config.ampUi;
 				const border = (text: string) => hexColor(text, amp.borderColor) ?? ctx.ui.theme.fg("border", text);
+				const isCommandPalette = autocompleteLines.length > 0 && this.getText().trimStart().startsWith("/");
+				if (isCommandPalette) {
+					const title = "Command Palette";
+					const titleColor = (text: string) => hexColor(text, "#e1c27d") ?? ctx.ui.theme.fg("accent", text);
+					const selectedBg = "#e1c27d";
+					const promptLines = lines.slice(1, -1).map((line) => truncateToWidth(line.trimEnd(), Math.max(1, width - 4), ""));
+					const listLines = autocompleteLines.map((line) => line.trimEnd());
+					const paletteLines = [
+						commandPaletteTopBorder(width, title, border, titleColor),
+						...promptLines.map((line) => commandPaletteLine(line, width, border)),
+						commandPaletteLine("", width, border),
+						...listLines.map((line) => commandPaletteLine(line, width, border, selectedBg)),
+						`${border("╰")}${border("─".repeat(Math.max(0, width - 2)))}${border("╯")}`,
+					];
+					this.commandPaletteMouse = {
+						top: Math.max(1, this.tui.terminal.rows - paletteLines.length + 1),
+						listStart: 2 + promptLines.length,
+						listCount: listLines.length,
+					};
+					return paletteLines;
+				}
+				this.commandPaletteMouse = undefined;
 				while (lines.length - 2 < amp.minInputRows) {
 					lines.splice(lines.length - 1, 0, " ".repeat(innerWidth));
 				}
