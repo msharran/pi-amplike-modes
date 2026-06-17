@@ -231,25 +231,76 @@ function fitBorder(
 	return `${color(parts.leftCorner)}${leftText}${color(parts.line.repeat(gapWidth))}${rightText}${color(parts.rightCorner)}`;
 }
 
-function sessionCost(ctx: ExtensionContext): number {
-	let cost = 0;
-	for (const entry of ctx.sessionManager.getBranch()) {
+interface AmpUsageStats {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+	cost: number;
+	latestCacheHitRate?: number;
+}
+
+function formatTokenCount(count: number): string {
+	if (count < 1000) return count.toString();
+	if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+	if (count < 1000000) return `${Math.round(count / 1000)}k`;
+	if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
+	return `${Math.round(count / 1000000)}M`;
+}
+
+function sessionUsageStats(ctx: ExtensionContext): AmpUsageStats {
+	const stats: AmpUsageStats = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+	for (const entry of ctx.sessionManager.getEntries()) {
 		if (entry.type !== "message") continue;
-		const message = entry.message as { role?: string; usage?: { cost?: { total?: number } } };
-		if (message.role === "assistant") cost += message.usage?.cost?.total ?? 0;
+		const message = entry.message as {
+			role?: string;
+			usage?: {
+				input?: number;
+				output?: number;
+				cacheRead?: number;
+				cacheWrite?: number;
+				cost?: { total?: number };
+			};
+		};
+		if (message.role !== "assistant" || !message.usage) continue;
+		const input = message.usage.input ?? 0;
+		const output = message.usage.output ?? 0;
+		const cacheRead = message.usage.cacheRead ?? 0;
+		const cacheWrite = message.usage.cacheWrite ?? 0;
+		stats.input += input;
+		stats.output += output;
+		stats.cacheRead += cacheRead;
+		stats.cacheWrite += cacheWrite;
+		stats.cost += message.usage.cost?.total ?? 0;
+
+		const latestPromptTokens = input + cacheRead + cacheWrite;
+		stats.latestCacheHitRate = latestPromptTokens > 0 ? (cacheRead / latestPromptTokens) * 100 : undefined;
 	}
-	return cost;
+	return stats;
 }
 
-function formatTokens(ctx: ExtensionContext): string {
+function formatContextUsage(ctx: ExtensionContext): string {
 	const usage = ctx.getContextUsage();
-	const tokens = usage?.tokens ?? 0;
-	if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
-	return `${tokens}`;
+	const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
+	const percent = usage?.percent;
+	const percentText = percent === null || percent === undefined ? "?" : `${percent.toFixed(1)}%`;
+	return `${percentText}/${formatTokenCount(contextWindow)} (auto)`;
 }
 
-function formatCost(ctx: ExtensionContext): string {
-	return `$${sessionCost(ctx).toFixed(3)}`;
+function topMetricParts(ctx: ExtensionContext): string[] {
+	const stats = sessionUsageStats(ctx);
+	const parts: string[] = [];
+	if (stats.input) parts.push(`↑${formatTokenCount(stats.input)}`);
+	if (stats.output) parts.push(`↓${formatTokenCount(stats.output)}`);
+	if (stats.cacheRead) parts.push(`R${formatTokenCount(stats.cacheRead)}`);
+	if (stats.cacheWrite) parts.push(`W${formatTokenCount(stats.cacheWrite)}`);
+	if ((stats.cacheRead > 0 || stats.cacheWrite > 0) && stats.latestCacheHitRate !== undefined) {
+		parts.push(`CH${stats.latestCacheHitRate.toFixed(1)}%`);
+	}
+	const usingSubscription = ctx.model ? ctx.modelRegistry.isUsingOAuth(ctx.model) : false;
+	if (stats.cost || usingSubscription) parts.push(`$${stats.cost.toFixed(3)}${usingSubscription ? " (sub)" : ""}`);
+	parts.push(formatContextUsage(ctx));
+	return parts;
 }
 
 function isMouseInput(data: string): boolean {
@@ -406,7 +457,8 @@ export default function piAmplikeModes(pi: ExtensionAPI) {
 
 				const mode = labelForMode(ctx, pi, config);
 				const subtleText = (text: string) => hexColor(text, amp.textColor) ?? ctx.ui.theme.fg("muted", text);
-				const metricsText = `${formatCost(ctx)} ${amp.modeSeparator} ${formatTokens(ctx)} ${amp.tokensSuffix} ${amp.modeSeparator} `;
+				const metricParts = topMetricParts(ctx);
+				const metricsText = `${metricParts.slice(0, -1).join(" ")} - ${metricParts.at(-1) ?? ""} - `;
 				const topRight = `${subtleText(` ${metricsText}`)}${colorModeLabel(
 					ctx,
 					config,
