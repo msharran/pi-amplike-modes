@@ -58,7 +58,7 @@ const THINKING_LEVEL_COLORS: Record<ThinkingLevel, ThemeColor> = {
 	xhigh: "thinkingXhigh",
 };
 const DEFAULT_AMP_UI: AmpUiConfig = {
-	enabled: false,
+	enabled: true,
 	greeting: "Hi! What would you like to work on?",
 	metric: "tokens",
 	hideFooter: true,

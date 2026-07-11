@@ -62,14 +62,14 @@ Mode settings are read from `~/.pi/agent/modes.json`. If the file does not exist
 
 Create or edit `~/.pi/agent/modes.json` to customize providers, models, thinking levels, labels, and the optional Amp-style editor UI.
 
-The Amp-style UI is disabled by default. Enable it with `"ampUi": { "enabled": true }`. When enabled, it replaces the Pi header/footer with a minimal Amp-like prompt line and editor border; the editor shows cost, tokens, mode, directory, and branch using Amp-like muted chrome.
+The Amp-style UI is enabled by default. Disable it with `"ampUi": { "enabled": false }`. When enabled, it replaces the Pi header/footer with a minimal Amp-like prompt line and editor border; the editor shows cost, tokens, mode, directory, and branch using Amp-like muted chrome.
 
 ```json
 {
   "version": 1,
   "currentMode": "deep",
   "ampUi": {
-    "enabled": false,
+    "enabled": true,
     "greeting": "Hi! What would you like to work on?",
     "metric": "tokens",
     "hideFooter": true,
